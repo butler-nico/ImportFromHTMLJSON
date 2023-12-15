@@ -1,0 +1,47 @@
+
+from urllib.request import urlopen
+import os
+import json
+import pandas
+import getpass
+from shapely.geometry import MultiPolygon, Polygon
+from shapely.ops import unary_union
+from shapely import geometry
+
+savePathImports = "file path"
+fileName = ("name.json")
+closeFile = open(savePathImports + fileName, mode='w')
+
+######search trough arcgis menu and find dataset
+#help: https://developers.arcgis.com/rest/services-reference/enterprise/query-feature-service-.htm
+#arcgisMenu = 'https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/?f=json'
+#Where 1=1, GeometryType = Polygon, ReturnGeometry = True, OutFields = *, Format = JSON (if geojson doesn't include E/N), SQL Format = Standard
+
+######paste in base url
+base_url = 'https://services1.arcgis.com/ESMARspQHYMw9BZ9/ArcGIS/rest/services/Middle_Layer_Super_Output_Areas_December_2011_EW_BFE_V2/FeatureServer/0/query?where=1%3D1&objectIds=&time=&geometry=&geometryType=esriGeometryPolygon&inSR=&spatialRel=esriSpatialRelIntersects&resultType=none&distance=0.0&units=esriSRUnit_Meter&returnGeodetic=false&outFields=*&returnGeometry=true&returnCentroid=false&featureEncoding=esriDefault&multipatchOption=xyFootprint&maxAllowableOffset=&geometryPrecision=&outSR=&datumTransformation=&applyVCSProjection=false&returnIdsOnly=false&returnUniqueIdsOnly=false&returnCountOnly=false&returnExtentOnly=false&returnQueryGeometry=false&returnDistinctValues=false&cacheHint=false&orderByFields=&groupByFieldsForStatistics=&outStatistics=&having=&resultOffset=&resultRecordCount=&returnZ=false&returnM=false&returnExceededLimitFeatures=true&quantizationParameters=&sqlFormat=standard&f=pjson&token='
+
+######extract json data from RESTful API
+data = json.load(urlopen(base_url))
+
+ObjID, MSOACode, MSOAName, Coordinates = [], [], [], []
+
+for source in data['features']:
+    if len(source['geometry']['rings']) == 1:
+        ObjID.append(source['attributes']['OBJECTID'])
+        MSOACode.append(source['attributes']['MSOA11CD'])
+        MSOAName.append(source['attributes']['MSOA11NM'])
+        Coordinates.append(Polygon(source['geometry']['rings'][0]))
+    if len(source['geometry']['rings']) > 1:
+        for p in source['geometry']['rings']:
+            ObjID.append(source['attributes']['OBJECTID'])
+            MSOACode.append(source['attributes']['MSOA11CD'])
+            MSOAName.append(source['attributes']['MSOA11NM'])
+            Coordinates.append(geometry.Polygon(p))
+
+#####Create data frame and export as json file
+df = pandas.DataFrame([ObjID, MSOACode, MSOAName, Coordinates])
+df.index = pandas.Index(['ObjID', 'MSOACode', 'MSOAName', 'Coordinates'])
+df = df.transpose()
+
+df.to_json(savePathImports + fileName, orient='records', default_handler=str)
+closeFile.close()
